@@ -1,0 +1,105 @@
+---
+title: "OpenBugs"
+author: "Michael Andreae"
+date: "December 11, 2015"
+output: pdf_document
+---
+
+```{r, global_options, echo=FALSE}
+suppressWarnings(library(knitr))
+# set options
+opts_chunk$set(fig.width=6, fig.height=4, fig.path='Figs/',
+               echo=FALSE, warning=FALSE, message=FALSE)
+eval_everything=TRUE
+```
+
+
+We are trying to repeat the analysis by Dr. Johnson's for the ICBG evidency synthesis for ACE 151
+
+```{r}
+library(R2OpenBUGS)
+```
+
+# OpenBugs Example
+
+We followed the [Tutorial](http://www.r-tutor.com/bayesian-statistics/openbugs)
+
+
+```{r, Example, eval=eval_everything, echo=TRUE}
+
+model <- function() { 
+    # Prior 
+    p ~ dbeta(1, 1) 
+ 
+    # Likelihood 
+    y ~ dbin(p, N) 
+}
+
+# To transfer the model to OpenBUGS, we load the R2OpenBUGS extension
+# and write the model to a temporary location using the method
+# write.model. We denote the model file location by model.file.
+
+library(R2OpenBUGS) 
+model.file <- file.path(tempdir(), 
+                        "model.txt") 
+write.model(model, model.file)
+
+# Problem
+# The data set survey contains sample smoker statistics among
+# university students. Denote the proportion of smokers in the general
+# student population by p. With uniform prior, find the mean and
+# standard deviation of the posterior of p using OpenBUGS.
+
+# Then we have to decide data parameters of the BUGS model. We find
+# that there are 236 students in the survey, and 47 of them smoke,
+# which we denote by N and y respectively.
+
+library(MASS) 
+tbl <- table(survey$Smoke) 
+N <- as.numeric(sum(tbl)); N 
+
+y <- N - as.numeric(tbl["Never"]); y 
+
+# We then identify data variables in a list called data.
+
+data <- list("N", "y")
+
+# And we identify the variable p to be monitored in a vector called
+# params.
+
+params <- c("p")
+
+# Lastly, we need to select some initial parameters for the simulation.
+# A rule of thumb is to choose values as close to the expected result
+# as possible. In this case, we initialize p to be 0.5. Notice how we
+# wrap the initial values inside a list that is to be returned by a
+# function.
+
+inits <- function() { list(p=0.5) }
+
+# Then we invoke OpenBUGS with the namesake method bugs and save the
+# result in a variable out. We select 10,000 iterations per simulation
+# chain.
+
+out <- bugs(data, inits, params,  model.file, n.iter=10000)
+out$summary
+
+
+# Better to invoke the CODA option to get mcmc.list as output.
+
+out <- bugs(data, inits, params, model.file, codaPkg=TRUE,
+            n.iter=10000) 
+out.coda <- read.bugs(out) 
+
+# Analyse using shinystan
+
+library(shinystan)
+library(coda)
+
+# After verification that the opject is now a mcmc.list
+# convert to shinstan object and call shinystan
+
+is.mcmc.list(out.coda)
+out.shiny <- as.shinystan(out.coda)
+# launch_shinystan(out.shiny)
+```
